@@ -1,4 +1,4 @@
-use super::{range, Felt, Operation, DECODER_AUX_TRACE_OFFSET, ONE, ZERO};
+use super::{range, Felt, Operation, DECODER_AUX_TRACE_OFFSET, DECODER_TRACE_OFFSET, ONE, ZERO};
 use core::ops::Range;
 
 // CONSTANTS
@@ -89,3 +89,9 @@ pub const P2_COL_IDX: usize = DECODER_AUX_TRACE_OFFSET + 1;
 
 /// Running product column representing op group table.
 pub const P3_COL_IDX: usize = DECODER_AUX_TRACE_OFFSET + 2;
+
+// --- Globally indexed decoder column accessors --------------------------------------------------
+
+/// Location of operation bits columns relative to the main trace.
+pub const DECODER_OP_BITS_RANGE: Range<usize> =
+    range(DECODER_TRACE_OFFSET + OP_BITS_OFFSET, NUM_OP_BITS);

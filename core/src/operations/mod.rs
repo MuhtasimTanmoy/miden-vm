@@ -1,4 +1,4 @@
-use super::Felt;
+use super::{Felt, ZERO};
 use core::fmt;
 mod decorators;
 pub use decorators::{AdviceInjector, AssemblyOp, Decorator, DecoratorIterator, DecoratorList};
@@ -539,6 +539,18 @@ impl Operation {
                 | Self::Call
                 | Self::SysCall
         )
+    }
+
+    /// Returns the domain of this operation.  This is used for control block hashing.
+    /// This is equivalent to the op code if the operation is a control block initializer
+    /// (excluding span) or else ZERO.
+    pub const fn domain(&self) -> Felt {
+        match self {
+            Self::Call | Self::Join | Self::Loop | Self::Split | Self::SysCall => {
+                Felt::new(self.op_code() as u64)
+            }
+            _ => ZERO,
+        }
     }
 }
 

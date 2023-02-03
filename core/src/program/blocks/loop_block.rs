@@ -1,4 +1,4 @@
-use super::{fmt, hasher, Box, CodeBlock, Digest};
+use super::{fmt, hasher, Box, CodeBlock, Digest, Felt, Operation};
 
 // LOOP BLOCK
 // ================================================================================================
@@ -23,7 +23,7 @@ impl Loop {
     // --------------------------------------------------------------------------------------------
     /// Returns a new [Loop] bock instantiated with the specified body.
     pub fn new(body: CodeBlock) -> Self {
-        let hash = hasher::merge(&[body.hash(), Digest::default()]);
+        let hash = hasher::merge_in_domain(&[body.hash(), Digest::default()], Self::domain());
         Self {
             body: Box::new(body),
             hash,
@@ -41,6 +41,11 @@ impl Loop {
     /// Returns a reference to the code block which represents the body of the loop.
     pub fn body(&self) -> &CodeBlock {
         &self.body
+    }
+
+    /// Returns the domain of the loop block
+    pub const fn domain() -> Felt {
+        Operation::Loop.domain()
     }
 }
 

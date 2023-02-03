@@ -95,6 +95,17 @@ impl CodeBlock {
             CodeBlock::Proxy(block) => block.hash(),
         }
     }
+
+    /// Returns the domain of the code block
+    pub fn domain(&self) -> Felt {
+        match self {
+            CodeBlock::Call(block) => block.domain(),
+            CodeBlock::Join(_) => Join::domain(),
+            CodeBlock::Loop(_) => Loop::domain(),
+            CodeBlock::Split(_) => Split::domain(),
+            _ => Felt::ZERO,
+        }
+    }
 }
 
 impl fmt::Display for CodeBlock {
