@@ -7,26 +7,18 @@ on:
     types: [opened, repoened, synchronize]
 
 jobs:
-  check:
-    name: Check Rust ${{matrix.toolchain}} on ${{matrix.os}}
-    runs-on: ${{matrix.os}}
-    strategy:
-      fail-fast: false
-      matrix:
-        toolchain: [stable, nightly]
-        os: [ubuntu-latest]
+  pre-commit:
+    name: Run pre-commit
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3.3.0
-      - name: Install rust
-        uses: actions-rs/toolchain@v1.0.6
+      - uses: actions-rs/toolchain@v1.0.6
         with:
-          toolchain: ${{matrix.toolchain}}
+          toolchain: nightly
+          components: "clippy, rustfmt"
           override: true
-      - name: Check
-        uses: actions-rs/cargo@v1.0.1
-        with:
-          command: check
-          args: --all-targets
+      - uses: actions/setup-python@v4.5.0
+      - uses: pre-commit/action@v3.0.0
 
   test:
     name: Test Rust ${{matrix.toolchain}} on ${{matrix.os}} with ${{matrix.args}}
@@ -75,44 +67,6 @@ jobs:
         with:
           command: test
           args: --release
-
-  clippy:
-    name: Clippy
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3.3.0
-      - name: Install minimal stable with clippy
-        uses: actions-rs/toolchain@v1.0.6
-        with:
-          profile: minimal
-          toolchain: nightly
-          components: clippy
-          override: true
-
-      - name: Clippy
-        uses: actions-rs/cargo@v1.0.1
-        with:
-          command: clippy
-          args: --all -- -D clippy::all -D warnings
-
-  rustfmt:
-    name: rustfmt
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3.3.0
-      - name: Install minimal stable with rustfmt
-        uses: actions-rs/toolchain@v1.0.6
-        with:
-          profile: minimal
-          toolchain: stable
-          components: rustfmt
-          override: true
-
-      - name: rustfmt
-        uses: actions-rs/cargo@v1.0.1
-        with:
-          command: fmt
-          args: --all -- --check
 
   no-std:
     name: no-std
