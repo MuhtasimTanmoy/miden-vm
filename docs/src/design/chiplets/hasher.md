@@ -343,7 +343,7 @@ When absorbing the next node during Merkle path computation (i.e., $f_{mp} + f_{
 
 >$$
 (f_{mp} + f_{mv} + f_{mu}) \cdot ((1 - b) \cdot (h_{j +4}' - h_{j+4}) + b \cdot (h_{j + 8}' - h_{j + 4})) = 0 \text{ | degree} = 6
-$$ 
+$$
 
 Note, that when a computation is completed (i.e., $f_{out}=1$), the next hasher state is unconstrained.
 
