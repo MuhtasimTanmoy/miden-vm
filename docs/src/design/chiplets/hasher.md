@@ -105,7 +105,7 @@ In the above $\{a_0, ..., a_{11}\}$ is the input state of the hasher, and $\{b_0
 
 Computing a 2-to-1 hash involves the following steps:
 
-1. Initialize hasher state with $8$ field elements, setting the first capacity element to $8$, and the remaining capacity elements to $0$
+1. Initialize hasher state with $8$ field elements, set the second capacity element to $domain$ if the domain is provided (as in the case of control block hashing) or else 0, and the remaining capacity elements to $0$
 2. Apply Rescue Prime Optimized permutation.
 3. Return elements ${4, ..., 7}$ of the hasher state as output.
 

@@ -12,6 +12,8 @@ AIR constraints for the decoder involve operations listed in the table below. Fo
 
 | Operation | Flag         | Degree | Effect on stack |
 | --------- | :----------: | :----: | --------------- |
+| `CALL`    | $f_{call}$   | 6      | Top stack element is dropped. |
+| `SYSCALL` | $f_{syscall}$| 6      | Top stack element is dropped. |
 | `JOIN`    | $f_{join}$   | 6      | Stack remains unchanged. |
 | `SPLIT`   | $f_{split}$  | 6      | Top stack element is dropped. |
 | `LOOP`    | $f_{loop}$   | 6      | Top stack element is dropped. |
