@@ -130,9 +130,9 @@ jobs:
         with:
           toolchain: ${{matrix.toolchain}}
           override: true
-      - run: rustup target add wasm32-unknown-unknown
+          target: ${{matrix.target}}
       - name: Build
         uses: actions-rs/cargo@v1.0.1
         with:
           command: build
-          args: --verbose --no-default-features --target ${{ matrix.target }}
+          args: --verbose --no-default-features --target ${{matrix.target}}
