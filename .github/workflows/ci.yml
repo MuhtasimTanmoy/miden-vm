@@ -16,14 +16,14 @@ jobs:
         toolchain: [stable, nightly]
         os: [ubuntu]
     steps:
-      - uses: actions/checkout@main
+      - uses: actions/checkout@v3.3.0
       - name: Install rust
-        uses: actions-rs/toolchain@v1
+        uses: actions-rs/toolchain@v1.0.6
         with:
           toolchain: ${{matrix.toolchain}}
           override: true
       - name: Check
-        uses: actions-rs/cargo@v1
+        uses: actions-rs/cargo@v1.0.1
         with:
           command: check
           args: --all-targets
@@ -38,14 +38,14 @@ jobs:
         os: [ubuntu]
         args: [--release, --doc]
     steps:
-      - uses: actions/checkout@main
+      - uses: actions/checkout@v3.3.0
       - name: Install rust
-        uses: actions-rs/toolchain@v1
+        uses: actions-rs/toolchain@v1.0.6
         with:
           toolchain: ${{matrix.toolchain}}
           override: true
       - name: Test
-        uses: actions-rs/cargo@v1
+        uses: actions-rs/cargo@v1.0.1
         env:
           RUSTFLAGS: -C debug-assertions
         with:
@@ -62,14 +62,14 @@ jobs:
     strategy:
       fail-fast: false
     steps:
-      - uses: actions/checkout@main
+      - uses: actions/checkout@v3.3.0
       - name: Install rust
-        uses: actions-rs/toolchain@v1
+        uses: actions-rs/toolchain@v1.0.6
         with:
           toolchain: nightly
           override: true
       - name: Test
-        uses: actions-rs/cargo@v1
+        uses: actions-rs/cargo@v1.0.1
         env:
           RUSTFLAGS: -C debug-assertions
         with:
@@ -80,9 +80,9 @@ jobs:
     name: Clippy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@main
+      - uses: actions/checkout@v3.3.0
       - name: Install minimal stable with clippy
-        uses: actions-rs/toolchain@v1
+        uses: actions-rs/toolchain@v1.0.6
         with:
           profile: minimal
           toolchain: nightly
@@ -90,7 +90,7 @@ jobs:
           override: true
 
       - name: Clippy
-        uses: actions-rs/cargo@v1
+        uses: actions-rs/cargo@v1.0.1
         with:
           command: clippy
           args: --all -- -D clippy::all -D warnings
@@ -99,9 +99,9 @@ jobs:
     name: rustfmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@main
+      - uses: actions/checkout@v3.3.0
       - name: Install minimal stable with rustfmt
-        uses: actions-rs/toolchain@v1
+        uses: actions-rs/toolchain@v1.0.6
         with:
           profile: minimal
           toolchain: stable
@@ -109,7 +109,7 @@ jobs:
           override: true
 
       - name: rustfmt
-        uses: actions-rs/cargo@v1
+        uses: actions-rs/cargo@v1.0.1
         with:
           command: fmt
           args: --all -- --check
@@ -124,15 +124,15 @@ jobs:
         target:
           - wasm32-unknown-unknown
     steps:
-      - uses: actions/checkout@main
+      - uses: actions/checkout@v3.3.0
       - name: Install rust
-        uses: actions-rs/toolchain@v1
+        uses: actions-rs/toolchain@v1.0.6
         with:
           toolchain: ${{matrix.toolchain}}
           override: true
       - run: rustup target add wasm32-unknown-unknown
       - name: Build
-        uses: actions-rs/cargo@v1
+        uses: actions-rs/cargo@v1.0.1
         with:
           command: build
           args: --verbose --no-default-features --target ${{ matrix.target }}
