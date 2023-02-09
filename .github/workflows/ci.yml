@@ -9,12 +9,12 @@ on:
 jobs:
   check:
     name: Check Rust ${{matrix.toolchain}} on ${{matrix.os}}
-    runs-on: ${{matrix.os}}-latest
+    runs-on: ${{matrix.os}}
     strategy:
       fail-fast: false
       matrix:
         toolchain: [stable, nightly]
-        os: [ubuntu]
+        os: [ubuntu-latest]
     steps:
       - uses: actions/checkout@v3.3.0
       - name: Install rust
@@ -30,12 +30,12 @@ jobs:
 
   test:
     name: Test Rust ${{matrix.toolchain}} on ${{matrix.os}} with ${{matrix.args}}
-    runs-on: ${{matrix.os}}-latest
+    runs-on: ${{matrix.os}}
     strategy:
       fail-fast: false
       matrix:
         toolchain: [stable, nightly]
-        os: [ubuntu]
+        os: [ubuntu-latest]
         args: [--release, --doc]
     steps:
       - uses: actions/checkout@v3.3.0
