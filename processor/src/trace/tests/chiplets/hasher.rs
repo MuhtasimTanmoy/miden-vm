@@ -17,7 +17,7 @@ use vm_core::{
         HASHER_NODE_INDEX_COL_IDX, HASHER_ROW_COL_IDX, HASHER_STATE_COL_RANGE, HASHER_TRACE_OFFSET,
     },
     code_blocks::CodeBlock,
-    decoder::DECODER_OP_BITS_RANGE,
+    decoder::{NUM_OP_BITS, OP_BITS_OFFSET},
     utils::range,
     AdviceSet, StarkField, Word, DECODER_TRACE_OFFSET,
 };
@@ -29,6 +29,10 @@ const DECODER_HASHER_STATE_RANGE: Range<usize> = range(
     DECODER_TRACE_OFFSET + vm_core::decoder::HASHER_STATE_OFFSET,
     vm_core::decoder::NUM_HASHER_COLUMNS,
 );
+
+/// Location of operation bits columns relative to the main trace.
+pub const DECODER_OP_BITS_RANGE: Range<usize> =
+    range(DECODER_TRACE_OFFSET + OP_BITS_OFFSET, NUM_OP_BITS);
 
 // TESTS
 // ================================================================================================
@@ -291,15 +295,15 @@ pub fn b_chip_merge() {
 }
 
 /// Tests the generation of the `b_chip` bus column when the hasher performs a permutation
-/// requested by the `RpPerm` user operation.
+/// requested by the `HPerm` user operation.
 #[test]
 #[allow(clippy::needless_range_loop)]
 pub fn b_chip_permutation() {
-    let program = CodeBlock::new_span(vec![Operation::RpPerm]);
+    let program = CodeBlock::new_span(vec![Operation::HPerm]);
     let stack = vec![8, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8];
     let mut trace = build_trace_from_block(&program, &stack);
 
-    let mut rpperm_state: [Felt; STATE_WIDTH] = stack
+    let mut hperm_state: [Felt; STATE_WIDTH] = stack
         .iter()
         .map(|v| Felt::new(*v))
         .collect::<Vec<_>>()
@@ -327,29 +331,29 @@ pub fn b_chip_permutation() {
     expected *= build_expected_from_trace(&trace, &alphas, 0);
     assert_eq!(expected, b_chip[1]);
 
-    // at cycle 1 rpperm is executed and the initialization and result of the hash are both
+    // at cycle 1 hperm is executed and the initialization and result of the hash are both
     // requested by the stack.
-    let rpperm_init = build_expected(
+    let hperm_init = build_expected(
         &alphas,
         LINEAR_HASH_LABEL,
-        rpperm_state,
+        hperm_state,
         [ZERO; STATE_WIDTH],
         Felt::new(9),
         ZERO,
     );
-    // request the rpperm initialization.
-    expected *= rpperm_init.inv();
-    apply_permutation(&mut rpperm_state);
-    let rpperm_result = build_expected(
+    // request the hperm initialization.
+    expected *= hperm_init.inv();
+    apply_permutation(&mut hperm_state);
+    let hperm_result = build_expected(
         &alphas,
         RETURN_STATE_LABEL,
-        rpperm_state,
+        hperm_state,
         [ZERO; STATE_WIDTH],
         Felt::new(16),
         ZERO,
     );
-    // request the rpperm result.
-    expected *= rpperm_result.inv();
+    // request the hperm result.
+    expected *= hperm_result.inv();
     assert_eq!(expected, b_chip[2]);
 
     // at cycle 2 the result of the span hash is requested by the decoder
@@ -374,7 +378,7 @@ pub fn b_chip_permutation() {
     expected *= build_expected_from_trace(&trace, &alphas, 7);
     assert_eq!(expected, b_chip[8]);
 
-    // at cycle 8 the initialization of the rpperm hash is provided by the hasher
+    // at cycle 8 the initialization of the hperm hash is provided by the hasher
     expected *= build_expected_from_trace(&trace, &alphas, 8);
     assert_eq!(expected, b_chip[9]);
 
@@ -383,7 +387,7 @@ pub fn b_chip_permutation() {
         assert_eq!(expected, b_chip[row]);
     }
 
-    // at cycle 15 the result of the rpperm hash is provided by the hasher
+    // at cycle 15 the result of the hperm hash is provided by the hasher
     expected *= build_expected_from_trace(&trace, &alphas, 15);
     assert_eq!(expected, b_chip[16]);
 

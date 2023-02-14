@@ -14,11 +14,16 @@ pub struct Join {
 }
 
 impl Join {
+    // CONSTANTS
+    // --------------------------------------------------------------------------------------------
+    /// The domain of the join block (used for control block hashing).
+    pub const DOMAIN: Felt = Felt::new(Operation::Join.op_code() as u64);
+
     // CONSTRUCTOR
     // --------------------------------------------------------------------------------------------
     /// Returns a new [Join] block instantiated with the specified code blocks.
     pub fn new(body: [CodeBlock; 2]) -> Self {
-        let hash = hasher::merge_in_domain(&[body[0].hash(), body[1].hash()], Self::domain());
+        let hash = hasher::merge_in_domain(&[body[0].hash(), body[1].hash()], Self::DOMAIN);
         Self {
             body: Box::new(body),
             hash,

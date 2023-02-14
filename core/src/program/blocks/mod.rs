@@ -100,10 +100,11 @@ impl CodeBlock {
     pub fn domain(&self) -> Felt {
         match self {
             CodeBlock::Call(block) => block.domain(),
-            CodeBlock::Join(_) => Join::domain(),
-            CodeBlock::Loop(_) => Loop::domain(),
-            CodeBlock::Split(_) => Split::domain(),
-            _ => Felt::ZERO,
+            CodeBlock::Join(_) => Join::DOMAIN,
+            CodeBlock::Loop(_) => Loop::DOMAIN,
+            CodeBlock::Span(_) => Span::DOMAIN,
+            CodeBlock::Split(_) => Split::DOMAIN,
+            CodeBlock::Proxy(_) => panic!("Can't fetch `domain` for a `Proxy` block!"),
         }
     }
 }

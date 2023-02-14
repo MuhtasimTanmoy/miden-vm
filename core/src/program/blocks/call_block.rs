@@ -18,11 +18,18 @@ pub struct Call {
 }
 
 impl Call {
+    // CONSTANTS
+    // --------------------------------------------------------------------------------------------
+    /// The domain of the call block (used for control block hashing).
+    pub const CALL_DOMAIN: Felt = Felt::new(Operation::Call.op_code() as u64);
+    /// The domain of the syscall block (used for control block hashing).
+    pub const SYSCALL_DOMAIN: Felt = Felt::new(Operation::SysCall.op_code() as u64);
+
     // CONSTRUCTOR
     // --------------------------------------------------------------------------------------------
     /// Returns a new [Call] block instantiated with the specified function body hash.
     pub fn new(fn_hash: Digest) -> Self {
-        let hash = hasher::merge_in_domain(&[fn_hash, Digest::default()], Operation::Call.domain());
+        let hash = hasher::merge_in_domain(&[fn_hash, Digest::default()], Self::CALL_DOMAIN);
         Self {
             hash,
             fn_hash,
@@ -33,8 +40,7 @@ impl Call {
     /// Returns a new [Call] block instantiated with the specified function body hash and marked
     /// as a kernel call.
     pub fn new_syscall(fn_hash: Digest) -> Self {
-        let hash =
-            hasher::merge_in_domain(&[fn_hash, Digest::default()], Operation::SysCall.domain());
+        let hash = hasher::merge_in_domain(&[fn_hash, Digest::default()], Self::SYSCALL_DOMAIN);
         Self {
             hash,
             fn_hash,
@@ -63,8 +69,8 @@ impl Call {
     /// Returns the domain of the call block
     pub fn domain(&self) -> Felt {
         match self.is_syscall() {
-            true => Operation::SysCall.domain(),
-            false => Operation::Call.domain(),
+            true => Self::SYSCALL_DOMAIN,
+            false => Self::CALL_DOMAIN,
         }
     }
 }

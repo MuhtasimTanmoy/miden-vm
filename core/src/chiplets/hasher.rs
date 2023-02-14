@@ -133,7 +133,7 @@ pub fn merge(values: &[Digest; 2]) -> Digest {
     Hasher::merge(values)
 }
 
-/// Returns a hash of two digests with a specified domain.  This method is intended for hashing of MAST blocks.
+/// Returns a hash of two digests with a specified domain.
 #[inline(always)]
 pub fn merge_in_domain(values: &[Digest; 2], domain: Felt) -> Digest {
     Hasher::merge_in_domain(values, domain)
