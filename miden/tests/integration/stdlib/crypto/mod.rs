@@ -7,3 +7,4 @@ mod falcon;
 mod fri;
 mod keccak256;
 mod sha256;
+mod fri_all;

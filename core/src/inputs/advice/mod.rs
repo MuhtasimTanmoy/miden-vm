@@ -44,6 +44,25 @@ impl AdviceSet {
         Ok(Self::SparseMerkleTree(SparseMerkleTree::new(keys, values, depth)?))
     }
 
+    /// Returns a new [AdviceSet] instantiated as a Merkle path set with a given depth for the provided
+    /// lists of indices, values and paths.
+    ///
+    /// # Errors
+    /// Returns an error if the paths do not resolve to the same root.
+    pub fn new_merkle_path_set(
+        indices: Vec<u64>,
+        values: Vec<Word>,
+        paths: Vec<Vec<Word>>,
+        depth: u32,
+    ) -> Result<Self, AdviceSetError> {
+        let mut set = MerklePathSet::new(depth)?;
+
+        for (i, (v, p)) in indices.iter().zip(values.iter().zip(paths.iter())) {
+            set.add_path(*i, *v, p.to_vec())?
+        }
+        Ok(Self::MerklePathSet(set))
+    }
+    
     // PUBLIC ACCESSORS
     // --------------------------------------------------------------------------------------------
 

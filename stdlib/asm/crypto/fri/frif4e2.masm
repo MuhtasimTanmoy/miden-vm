@@ -1,0 +1,247 @@
+use.std::crypto::fri::ext2fri
+
+#! Stores the layer commitments C followed by [d_size, t_depth, a1, a0] where:
+#! 1) d_size is the domain size divided by 4 of the domain corresponding to C.
+#! 2) t_depth is the tree depth of the Merkle tree with commitment C.
+#! 3) (a0, a1) is the folding challenge to create the next layer.
+#! TODO: This processing function should in fact compute d_size and t_depth for each C
+#! starting from the original domain size.
+export.preprocess.2
+    locaddr.3                   
+    adv_push.1                  #[num_layers, ptr, ..]
+    dup
+    neq.0
+    while.true
+        push.0.0.0.0
+        adv_loadw                        
+        movup.5                          
+        u32wrapping_add.1                
+        dup movdn.6                      
+        mem_storew                       
+        adv_loadw                        
+        movup.4                          
+        u32wrapping_add.1                
+        dup movdn.6                      
+        mem_storew dropw                 
+        u32wrapping_sub.1 dup            
+        neq.0                            
+    end
+
+    #[0, ptr, ..]
+    drop 
+    dup               
+
+    # value of the remainder codeword
+    push.0.0.0.0
+    repeat.32
+        movup.4
+        add.1
+        dup
+        movdn.5
+        mem_storew
+    end
+
+    dropw
+    # [ptr_(2n+32), ptr_2n]
+
+    drop
+    locaddr.3
+    # [ptr, ptr_2n]
+end
+
+
+
+
+
+#! This functions checks that the evaluation at (g^p)^2^n of the last folded codeword is equal 
+#! to the remainder codeword sent by the prover at (g^p)^2^n.
+#! Input: [ptr2n, (g^p)^2^n, f_pos, ne1, ne0, ptr2n, ..]
+#! Output: ()
+#! Cost: 30 cycles
+export.verify_remainder_query               
+
+    # Compute the index 
+    movup.2
+    push.2
+    u32checked_divmod   #[f_pos % 2, ?, ptr2n, (g^p)^2^n, ne1, ne0, ptr2n, ..]
+    movup.2
+    add
+    push.0.0.0.0
+    movup.4
+    mem_loadw           #[v1, v0, v1', v0', ?, (g^p)^2^n, ne1, ne0, ptr2n, ..]
+    movup.2
+    swap
+    dup.4
+    cdrop
+    swap.3
+    cdrop               #[v1, v0, x, ne1, ne0, ptr2n]
+    movup.3
+    assert_eq
+    swap drop
+    assert_eq
+    drop
+end
+
+#! Checks that, for a query with index p at layer i, the folding procedure to create layer (i + 1)
+#! was performed correctly.      
+#! Input: [ptr0 + 2 * i, g^p, p, e1, e0, ptr2n, ..]
+#! Output: [ptr0 + 2 * (i + 1), (g^p)^4, f_pos, ne1, ne0, ptr2n, ..]
+#! Cost: 98
+export.verify_query_layer.2
+
+    
+    # Fetch C and [d_size, t_depth, a1, a0] from memory
+    # [C, d_size, t_depth, a1, a0, g^p, p, e1, e0, ptr0, ptr2n, ..]
+    # 18 cycles
+    movdn.4
+    dup.4
+    push.0.0.0.0
+    dup.4
+    mem_loadw
+    movup.4
+    push.0.0.0.0
+    movup.4
+    mem_loadw
+
+    
+    # Verify Merkle auth path for (index = p % d_size, depth = t_depth, Root = C)
+    # [V, p % d_size, d_seg, g^p, e1, e0, a1, a0, ptr0, ptr2n, ..]
+    # 27 cycles
+    swapw.2                 # [g^p, p, e1, e0, d_size, t_depth, a1, a0, C, ptr0, ptr2n, ..]
+    swap                    # [p, g^p, e1, e0, d_size, t_depth, a1, a0, C, ptr0, ptr2n, ..]
+    movup.4                 # [d_size, p, g^p, e1, e0, t_depth, a1, a0, C, ptr0, ptr2n, ..]
+    u32checked_divmod       # [p % d_size, d_seg, g^p, e1, e0, t_depth, a1, a0, C, ptr0, ptr2n, ..]
+    movup.5                 # [t_depth, p % d_size, d_seg, g^p, e1, e0, a1, a0, C, ptr0, ptr2n, ..]
+    movupw.2                # [C, t_depth, p % d_size, d_seg, g^p, e1, e0, a1, a0, ptr0, ptr2n, ..]
+    dup.5
+    movup.5                 # [t_depth, p % d_size, C, p % d_size, d_seg, g^p, e1, e0, a1, a0, ptr0, ptr2n, ..]
+    mtree_get               # [t_depth, p % d_size, C, p % d_size, d_seg, g^p, e1, e0, a1, a0, ptr0, ptr2n, ..]
+    swapw dropw             # [V, p % d_size, d_seg, g^p, e1, e0, a1, a0, ptr0, ptr2n, ..]
+
+    # Unhashing the leaf values i.e. V to (v7,..., v0)
+    # Output: [v7, ..., v0, ]
+    # Cost: ~52 cycles
+
+    # Unhash V and save the pre-image in locaddr.0 and locaddr.1
+    # [T2, T1, T0, V, p % d_size, d_seg, g^p, e1, e0, a1, a0, ptr0, ptr2n, ..]
+    # 17 cycles
+    locaddr.1
+    push.0.0.0.0.0.0.0.0.0.0.0.0
+    adv_pipe
+    adv_pipe
+
+    # Assert T1 == V
+    # 13 cycles
+    swapw.3
+    movup.4
+    assert_eq
+    movup.3
+    assert_eq
+    movup.2
+    assert_eq
+    assert_eq 
+    
+    # Load (v7, ..v0) from memory
+    # [v7, ..., v0, p % d_size, d_seg, g^p, e1, e0, a1, a0, ptr0, ptr2n, ..]
+    # 3 cycles
+    loc_loadw.2
+    swapw
+    loc_loadw.1
+
+    # Call exec.FRIFOLD4
+    # [x, x, x, x, x, x, x, x, x, x, x, (g^p)^4, p % d_size, ne1, ne0, ptr0 + 2, ptr2n, ..] 
+    # 1 cycle
+
+    # Prepare next iteration
+    # [?, ptr0 + 2, (g^p)^4, p % d_size, ne1, ne0, ptr2n, ..]
+    # 18 cycles
+    drop drop drop dropw dropw      # [(g^p)^4, p % d_size, ne1, ne0, ptr0 + 2, ptr2n, ..] 
+    movup.4 dup.5 dup.1             # [ptr0 + 2, ptr2n, ptr0 + 2, (g^p)^4, p % d_size, ne1, ne0, ptr2n, ..]
+    neq                             # [?, ptr0 + 2, (g^p)^4, p % d_size, ne1, ne0, ptr2n, ..]
+end
+
+#! Verifies one FRI query.
+#! Input: [g^p, p, e1, e0, ptr0, ptr2n, ..]
+#! Output: ()
+#! Cost: 37 + num_layers * 105
+export.verify_query
+
+    
+    # [ptr0, g^p, p, e1, e0, ptr2n, ..]
+    movup.4
+    
+    # While ptr0 != ptr2n iterate
+    # [?, ptr0, g^p, p, e1, e0, ptr2n, ..]
+    dup.5
+    dup.1
+    neq
+    assert
+
+    while.true
+        # [ptr0 + 2, (g^p)^4, f_pos, ne1, ne0, ptr2n, ..] 
+        exec.verify_query_layer
+
+        # Prepare next iteration
+
+        dup.5
+        dup.1
+        neq
+        assert
+    end
+
+    # [ptr2n, (g^p)^2^n, f_pos, ne1, ne0, ptr2n, ..]
+
+    # Check that remainder[f_pos] == (ne0, ne1)
+    # ()
+    exec.verify_remainder_query
+end
+
+#! Verifies a FRI proof
+#! Cost: 2626 + 8 + num_queries * (37 + num_layers * 105 + 58)
+export.verify_fri.1
+
+    # Load num of queries num_q and domain generator g
+    #[num_q, g, ptr0, ptr2n, ...]
+    adv_push.1
+    adv_push.1
+    locaddr.0
+    mem_storew
+
+    neq.0
+
+    while.true
+        #[g, ptr0, ptr2n, ...]
+        
+        # Load [p, e1, e0] from advice i.e. next query data
+        # [p, e1, e0, g, ptr0, ptr2n]
+        adv_push.3
+
+        # Compute poe = g^p
+        # [g^p, p, e1, e0, ptr0, ptr2n, ..]
+        movup.3
+        dup.1
+        exp.u32
+
+        # We now have everything to verify query p. 
+        # ()
+        exec.verify_query
+
+        # Prepare for next iteration
+        # [?, g, ptr0, ptr2n]
+        push.0.0.0.0
+        locaddr.0
+        adv_loadw
+        sub.1
+        locaddr.0
+        mem_storew
+        neq.0
+    end
+
+    # Stack so far
+    # [g, ptr0, ptr2n]
+
+    # Verify that remainder corresponds to a low degree polynomial
+    # ()
+    drop drop
+    exec.ext2fri::verify_remainder_64
+end

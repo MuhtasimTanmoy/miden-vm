@@ -1,0 +1,338 @@
+
+#! Given a stack with initial configuration given by [x,a1,a0,...] where a = (a0,a1) is an element
+#! in the field extension and x is an element of the base field, this procedure computes the multiplication
+#! of x, when looked at as (x,0), with a in the extension field. The output is [xa1,xa0,...]
+export.mul_base
+    dup         #[x,x,a1,a0,...]
+    movdn.3     #[x,a1,a0,x,...]
+    mul         #[xa1,a0,x,...]
+    movdn.2     #[a0,x,xa1,...]
+    mul         #[xa0,xa1,...]
+    swap        #[xa1,xa0,...]
+end
+
+export.ext2subrev
+    swap        #[a0,a1,b1,b0,...]
+    movup.3     #[b0,a0,a1,b1,...]
+    sub         #[a0-b0,a1,b1,...]
+    movdn.2     #[a1,b1,a0-b0,...]
+    swap        #[b1,a1,a0-b0,...]
+    sub         #[a1-b1,a0-b0,...]
+end
+
+#! Given a stack in the following initial configuration [a1, a0, b1, b0, c1, c0, d1, d0, ...] the following
+#! procedure computes (a + b + ((a - b) * c * d^(-1)))/2 with the assumption that d1 is equal to 0
+#! Cost: 15 + 1 Esub + 2 mulBase + 1 Emul + 2 Eadd
+#! Cost: ~70 cycles in Ext2
+export.fold_2
+    dupw                #[a1, a0, b1, b0, a1, a0, b1, b0, c1, c0, d1, d0, ...]
+
+    exec.ext2subrev      #[(a-b)1, (a-b)0, a1, a0, b1, b0, c1, c0, d1, d0, ...]
+    push.0.0            #[0, 0, (a-b)1, (a-b)0, a1, a0, b1, b0, c1, c0, d1, d0, ...]
+    movupw.2            #[c1, c0, d1, d0, 0, 0, (a-b)1, (a-b)0, a1, a0, b1, b0, ...]
+    movup.2             #[d1, c1, c0, d0, 0, 0, (a-b)1, (a-b)0, a1, a0, b1, b0, ...]
+    drop                #[c1, c0, d0, 0, 0, (a-b)1, (a-b)0, a1, a0, b1, b0, ...]
+    movup.2             #[d0, c1, c0, 0, 0, (a-b)1, (a-b)0, a1, a0, b1, b0, ...]
+    inv                 #[d0_inv, c1, c0, 0, 0, (a-b)1, (a-b)0, a1, a0, b1, b0, ...]
+    exec.mul_base       #[y1, y0, 0, 0, (a-b)1, (a-b)0, a1, a0, b1, b0, ...]
+    movup.2             #[0, y1, y0, 0, (a-b)1, (a-b)0, a1, a0, b1, b0, ...]
+    movup.3             #[0, 0, y1, y0, (a-b)1, (a-b)0, a1, a0, b1, b0, ...]
+    drop                #[0, y1, y0, (a-b)1, (a-b)0, a1, a0, b1, b0, ...]
+    drop                #[y1, y0, (a-b)1, (a-b)0, a1, a0, b1, b0, ...]
+    ext2mul      #[w1, w0, a1, a0, b1, b0, ...]
+    ext2add      #[v1, v0, b1, b0, ...]
+    ext2add      #[o1, o0, ...]
+    push.9223372034707292161 #[2_inv, o1, o0]
+    exec.mul_base
+end
+
+#! This procedure computes the folded position in the exponent of the corresponding domain generator
+#! normalized by the offset. It uses an algebraic relationship between the original and folded positions
+#! given by multiplication with the 2nd primitive root of unity in our field.
+#! Cost: 10 cycles
+#! Input:    #[?, poe, poe, ...]
+#! Output:   #[poe_sq, xs, ...]
+export.next_pos_exp
+    dup.1                               #[poe, ?, poe, poe, ...]   
+    push.18446744069414584320           #[nor, poe, ?, poe, poe, ...]
+    mul                                 #[poe/nor, ?, poe, poe, ...]
+    swap                                #[?, poe/nor, poe, poe, ...]
+    cdrop                               #[xs, poe, ...]
+    mul.7                               #mul by offset 
+    swap                                #[poe, xs, ...]
+    dup mul                             #[poe_sq, xs, ...]
+end
+
+#! Preprocess the layer commitments C as well as num_q (number of queries), d_size (initial domain size), 
+#! g (intial domain generator), t_depth (initial tree depth) and (a0, a1) (the folding challenges alpha).
+#! The address of the word (num_q, d_size, g, t_depth) will be at locaddr.0. The commitments and alphas will be
+#! at the subsequent addresses. The total number of such commitments and alphas is t_depth - 3 
+#! (excluding the remainder commitment).
+export.preprocess.2
+    locaddr.1                   #[ptr, ..]
+    adv_push.4                  #[num_q, d_size, g, t_depth, ptr, ..]
+    dup.3                       #[t_depth, num_q, d_size, g, t_depth, ptr, ..]
+    movdn.4                     #[num_q, d_size, g, t_depth, t_depth, ptr, ..]
+    dup.5                       #[ptr, num_q, d_size, g, t_depth, t_depth, ptr, ..]
+    mem_storew dropw            #[t_depth, ptr, ..]
+    dup
+    u32checked_neq.3            #[?, t_depth, ptr, ..]
+    while.true
+        push.0.0.0.0
+        adv_loadw                       #[C, t_depth, ptr, ..]
+        movup.5                         #[ptr, C, t_depth, ..]
+        u32wrapping_add.1               #[ptr+1, C, t_depth, ..]
+        dup movdn.6                     #[ptr+1, C, t_depth, ptr+1, ..]
+        mem_storew                      #[C, t_depth, ptr+1, ..]
+        adv_loadw                       #[0, 0, a1, a0, t_depth, ptr+1, ..]
+        movup.5                         #[ptr+1, 0, 0, a1, a0, t_depth, ..]
+        u32wrapping_add.1               #[ptr+2, 0, 0, a1, a0, t_depth, ..]
+        dup movdn.6                     #[ptr+2, 0, 0, a1, a0, t_depth, ptr+2, ..]
+        mem_storew dropw                #[t_depth, ptr+2, ..]
+        u32wrapping_sub.1 dup           #[t_depth-1, t_depth-1, ptr+2, ..]
+        u32checked_neq.3                #[?, t_depth-1, ptr+2, ..]
+    end
+    #[0, ptr, ..]
+    drop 
+    add.1               # this address will be used for the adv_pipe instruction
+    # value of the remainder codeword
+    adv_push.2
+    movup.2
+
+    push.0.0.0.0
+    locaddr.1
+    mem_loadw
+    locaddr.1
+end
+
+#! Helper procedure used to prepare the stack for the next iteration of verify_query_layer for a 
+#! positon p. (ptr' - 2) is the address of the commitment for the next layer and (ptr' - 1) is 
+#! the address of the next alpha folding challenge.
+#! Cost: ~30 cycles
+#! Input: [t_depth, e1, e0, p, d_size, poe, ptr', ..]
+#! Output: [d, p, C, t_depth, e1, e0, poe, a1, a0, ptr'-2, ..]
+export.prepare_next
+    movup.6                                 #[ptr', t_depth, e1, e0, p, d_size, poe, ..] where ptr' points to the address of the previous C
+    sub.2 dup                               #[ptr'-2, ptr'-2, t_depth, e1, e0, p, d_size, poe, ..] ptr' - 2 now points to the new C
+    movdn.7                                 #[ptr'-2, t_depth, e1, e0, p, d_size, poe, ptr'-2, ..]
+    push.0.0.0.0                            #[0, 0, 0, 0, ptr'-2, t_depth, e1, e0, p, d_size, poe, ptr'-2, ..]
+    dup.4 add.1                             #[ptr'-1, 0, 0, 0, 0, ptr'-2, t_depth, e1, e0, p, d_size, poe, ptr'-2, ..]
+    mem_loadw                               #[0, 0, a1, a0, ptr'-2, t_depth, e1, e0, p, d_size, poe, ptr'-2, ..]
+    push.0.0                                #[0, 0, 0, 0, a1, a0, ptr'-2, t_depth, e1, e0, p, d_size, poe, ptr'-2, ..]
+    movup.6                                 #[ptr'-2, 0, 0, 0, 0, a1, a0, t_depth, e1, e0, p, d_size, poe, ptr'-2, ..]
+    mem_loadw                               #[C, a1, a0, t_depth, e1, e0, p, d_size, poe, ptr'-2, ..]
+    swapw.2                                 #[e0, p, d_size, poe, a1, a0, t_depth, e1, C, ptr'-2, ..]
+    swap.2                                  #[d_size, p, e0, poe, a1, a0, t_depth, e1, C, ptr'-2, ..]
+    movup.7                                 #[e1, d_size, p, e0, poe, a1, a0, t_depth, C, ptr'-2, ..]
+    movup.7                                 #[t_depth, e1, d_size, p, e0, poe, a1, a0, C, ptr'-2, ..]
+    movupw.2                                #[C, t_depth, e1, d_size, p, e0, poe, a1, a0, ptr'-2, ..]
+    movup.7                                 #[p, C, t_depth, e1, d_size, e0, poe, a1, a0, ptr'-2, ..]
+    movup.7                                 #[d_size, p, C, t_depth, e1, e0, poe, a1, a0, ptr'-2, ..]
+end
+
+#! The following procedure computes an iteration of FRI verification for a query.
+#! The stack starts in the following initial configuration [d_size, p, C, t_depth, e1, e0, poe, a1, a0, ptr', f_ptr..] 
+#! where d_size is the current domain size, p the current position, C is the commitment of current layer, t_depth 
+#! its corresponding tree depth, (e1, e0) is the evaluation point, poe is the position in the exponent
+#! of the domain generator, (a1, a0) is the alpha to compute the next evaluation point. The pointers ptr' and f_ptr point
+#! to the current layer commitment (and its corresponding challenge) while f_ptr is used to keep track of the first such
+#! commitment for subsequent queries. 
+#! TODO: Check where/if some checks are needed at the beginning, like p < d_size (p&d_size are u32) and that 2^t_depth == d_size 
+#! Cost: ~200 cycles
+#! Input:  [d_size, p, C, t_depth, e1, e0, poe, a1, a0, ptr', f_ptr..]
+#! Output: [t_depth-1, e1, e0, p%d_size/2, d_size/2, poe_sq, ptr', f_ptr..]
+export.verify_query_layer.1
+
+    ## Merkle proof verification
+    # Cost: ~25 cycles
+    u32unchecked_div.2          #[d_size/2, p, C, t_depth, ...]
+    dup                         #[d_size/2, d_size/2, p, C, t_depth, ...]
+    dup.2 swap                  #[d_size/2, p, d_size/2, p, C, t_depth, ...]
+    u32checked_divmod           #[p%d_size/2, ?, d_size/2, p, C, t_depth, ...]
+    swapw                       #[C, p%d_size/2, ?, d_size/2, p, t_depth, ...]
+    dup.4                       #[p%d_size/2, C, p%d_size/2, ?, d_size/2, p, t_depth, ...]
+    dup.9                       #[t_depth, p%d_size/2, C, p%d_size/2, ?, d_size/2, p, t_depth, ...]
+    mtree_get  swapw            #[C, V', p%d_size/2, ?, d_size/2, p, t_depth, ...]  V' are the digest of values V = (v3, v2, v1, v0)
+    dropw
+
+    ## Unhashing the leaf values
+    # Cost: ~35 cycles
+    # Input: [V', p%d_size/2, ?, d_size/2, p, t_depth, ...]
+    # Output: [v3, v2, v1, v0, p%d_size/2, ?, d_size/2, p, V, t_depth, ...]
+    # where V = (v3, v2, v1, v0) is the unhashing of V'
+    push.1.0.0.0.0.0.0.0
+    adv_loadw
+    loc_storew.0
+    push.1.0.0.0
+    hperm
+    swapw.3
+    movup.4
+    assert_eq
+    movup.3
+    assert_eq
+    movup.2
+    assert_eq
+    assert_eq
+    dropw
+    loc_loadw.0
+
+    # Check that evaluation (from the previous layer) is equal to the (appropriate) unhashed values.
+    # In other words, compare (e1,e0) to either (v3,v2) if ? or to (v1,v0) if not ?.
+    # Cost: ~28 cycles
+    dupw  movdnw.2              #[v3, v2, v1, v0, p%d_size/2, ?, d_size/2, p, V, t_depth, ...]
+    movup.2 swap                #[v3, v1, v2, v0, p%d_size/2, ?, d_size/2, p, V, t_depth, ...]
+    dup.5                       #[?, v3, v1, v2, v0, p%d_size/2, ?, d_size/2, p, V, t_depth, ...]
+    cdrop                       #[v1, v2, v0, p%d_size/2, ?, d_size/2, p, V, t_depth, ...]
+    movdn.2                     #[v2, v0, v1, p%d_size/2, ?, d_size/2, p, V, t_depth, ...]
+    dup.4                       #[?, v2, v0, v1, p%d_size/2, ?, d_size/2, p, V, t_depth, ...]
+    cdrop   swap                #[v1, v0, p%d_size/2, ?, d_size/2, p, V, t_depth, e1, e0, ...]
+    dup                         #[v1, v1, v0, p%d_size/2, ?, d_size/2, p, V, t_depth, e1, e0..]
+    movup.12                    #[e1, v1, v1, v0, p%d_size/2, ?, d_size/2, p, t_depth, e0..]
+    assert_eq                   #[v1, v0, p%d_size/2, ?, d_size/2, p, V, t_depth, e0..]
+    dup.1                       #[v0, v1, v0, p%d_size/2, ?, d_size/2, p, V, t_depth, e0..]
+    movup.12                    #[e0, v0, v1, v0, p%d_size/2, ?, d_size/2, p, V, t_depth..]
+    assert_eq                   #[v1, v0, p%d_size/2, ?, d_size/2, p, V, t_depth, poe, ..] #poe is position in the exponent
+    drop drop                   #[p%d_size/2, ?, d_size/2, p, V, t_depth, poe, ..]
+
+    ## Prepare for fold_2 procedure by computing: offset * (domain_generator ^ position). This is done
+    ## using poe from the previous layer and the binary value ? using the next_pos_exp procedure.
+    # Cost: ~100 cycles
+    # Input: [p%d_size/2, ?, d_size/2, p, V, t_depth, poe, a1, a0, ..]
+    # Output: [e1, e0, p%d_size/2, d_size/2, poe_sq, t_depth, ..]
+    swapw             #[V, p%d_size/2, ?, d_size/2, p, t_depth, poe, ..]
+    movup.9                     #[poe, V, p%d_size/2, ?, d_size/2, p, t_depth, ..]
+    dup                         #[poe, poe, V, p%d_size/2, ?, d_size/2, p, t_depth, ..]
+    movup.7                     #[?, poe, poe, V, p%d_size/2, d_size/2, p, t_depth, ..]
+    exec.next_pos_exp           #[poe_sq, xs, V, p%d_size/2, d_size/2, p, t_depth, ..]
+    swap.8 drop                 #[xs, V, p%d_size/2, d_size/2, poe_sq, t_depth, ..]
+    push.0                      #[0, xs, V, p%d_size/2, d_size/2, poe_sq, t_depth, a1, a0, ..]
+    movup.11 movup.11           #[a1, a0, 0, xs, v3, v2, v1, v0, p%d_size/2, d_size/2, poe_sq, t_depth, ..]   
+    swapw                       #[v3, v2, v1, v0, a1, a0, 0, xs, p%d_size/2, d_size/2, poe_sq, t_depth, ..] #Should simplify fri since d1 is always equal to zero
+    movup.3 movup.3             #[v1, v0, v3, v2, a1, a0, 0, xs, p%d_size/2, d_size/2, poe_sq, t_depth, ..]
+    exec.fold_2                 #[e1, e0, p%d_size/2, d_size/2, poe_sq, t_depth, ..]
+
+    # Decrement the depth i.e. move one layer deeper in the folding step of FRI verification.
+    movup.5 u32wrapping_sub.1   #[t_depth-1, e1, e0, p%d_size/2, d_size/2, poe_sq, ptr', ..]
+    
+
+end
+
+#! Verify a single query. The expected stack configuration is [d_size, p, C, t_depth, e1, e0, poe, a1, a0, f_ptr-2, f_ptr, i_ptr, ...]
+#! where i_ptr is the address storing the current (num_q, d_size, g, t_depth), num_q is the index of the current query, 
+#! d_size is the domain size of the LDE, g is its generator and ptr' is the address of the commitment to 
+#! the first layer with the commitments to subsequent layers laid out, in alternating order with the layer
+#! alphas, in the subsequent addresses i.e. f_ptr - 2, f_ptr - 1 ...
+#! Input:  #[d_size, p, C, t_depth, e1, e0, poe, a1, a0, f_ptr - 2, f_ptr, i_ptr, ...]
+#! Output: #[p%d_size/2, d_size/2, poe_sq, i_ptr + 1, f_ptr, i_ptr, rem1, rem0...]
+export.verify_query
+    exec.verify_query_layer     #[t_depth-1, e1, e0, p%d_size/2, d_size/2, poe_sq, ptr', ..]
+
+    dup u32checked_neq.3
+    while.true
+        exec.prepare_next
+        exec.verify_query_layer
+        dup u32checked_neq.3
+    end
+
+    ## Verify remainder 
+    drop
+    dup.8 assert_eq
+    dup.8 assert_eq
+end
+
+#! Verify that the hash of the remainder codeword is equal to the commitment provided by the prover
+#! The following implementation relies on the assumption that the blowup factor is 8 and that the degree
+#! of the remainder is zero.
+#! Cost: ~80 cycles
+#! Input: #[p%d_size/2, d_size/2, poe_sq, i_ptr + 1, f_ptr, i_ptr, rem1, rem0...]
+#! Output: ()
+export.verify_remainder_com
+    dropw                  #[r1, r0, ..]
+    drop drop
+    dup.1 dup.1
+    push.1.0.0.0
+    swapw
+    push.1.0.0.0
+
+    # compute the leaf
+    hperm
+    dropw swapw dropw
+
+    # compute the Merkle tree root
+    dupw hmerge     
+    dupw hmerge
+    push.0.0.0.0
+    adv_loadw
+
+    
+    movup.4
+    assert_eq
+    movup.3
+    assert_eq
+    movup.2
+    assert_eq
+    assert_eq
+
+end
+
+#! This procedure verifies a FRI proof with number of queries num_q, initial domain size d_size, generator
+#! for this domain g, and tree depth of the initial layer Merkle tree commitment. i_ptr points to
+#! the address containing values common to all queries as well as to keep track of the queries
+#! that remain to be verified. f_ptr points to the address that will contain the result of adv_pipe.
+#! f_ptr - 2 * i - 2 points to the layer folding challenges alpha and f_ptr - 2 * i - 1 points to
+#! the i-th layer commitment.
+#! Input: #[i_ptr, num_q, d_size, g, t_depth, f_ptr, ...]
+#! Output: ()
+export.verify_fri
+    push.1
+    while.true
+        ## Prepare the of query for verification
+        # Cost: ~85 cycles
+        dup                         #[i_ptr, i_ptr, num_q, d_size, g, t_depth, f_ptr, ...]
+        movdn.6                     #[i_ptr, num_q, d_size, g, t_depth, f_ptr, i_ptr, ...]
+        mem_storew                  #[num_q, d_size, g, t_depth, ...]
+        push.0.0.0
+        adv_loadw                   #[0, p, e1, e0, d_size, g, t_depth, ...]
+        drop                        #[p, e1, e0, d_size, g, t_depth, ...]
+        dup                         #[p, p, e1, e0, d_size, g, t_depth, ...]
+        movup.5                     #[g, p, p, e1, e0, d_size, t_depth, ...]
+        swap                        #[p, g, p, e1, e0, d_size, t_depth, ...]
+        exp.u32                     #[poe, p, e1, e0, d_size, t_depth, ...]
+        dup.6                       #[f_ptr, poe, p, e1, e0, d_size, t_depth, f_ptr, ...]
+        sub.2 dup                   #[f_ptr - 2, f_ptr - 2, poe, p, e1, e0, d_size, t_depth, f_ptr, ...]
+        movdn.7                     #[f_ptr - 2, poe, p, e1, e0, d_size, t_depth, f_ptr - 2, f_ptr, ...]
+        push.0.0.0.0                #[0, 0, 0, 0, f_ptr - 2, poe, p, e1, e0, d_size, t_depth, f_ptr - 2, ...]
+        dup.4  add.1                #[f_ptr - 1, 0, 0, 0, 0, f_ptr - 2, poe, p, e1, e0, d_size, t_depth, f_ptr - 2, ...]
+        mem_loadw                   #[0, 0, a1, a0, f_ptr - 2, poe, p, e1, e0, d_size, t_depth, f_ptr - 2, ...]
+        push.0.0                    #[0, 0, 0, 0, a1, a0, f_ptr - 2, poe, p, e1, e0, d_size, t_depth, f_ptr - 2, ...]
+        movup.6                     #[f_ptr - 2, 0, 0, 0, 0, a1, a0, poe, p, e1, e0, d_size, t_depth, f_ptr - 2, ...]
+        mem_loadw                   #[C, a1, a0, poe, p, e1, e0, d_size, t_depth, f_ptr - 2, ...]
+        swapw.2 swapw           #[a1, a0, poe, p, e1, e0, d_size, t_depth, C, f_ptr - 2, ...]
+        movup.2                 #[poe, a1, a0, p, e1, e0, d_size, t_depth, C, f_ptr - 2, ...]
+        movup.5                 #[e0, poe, a1, a0, p, e1, d_size, t_depth, C, f_ptr - 2, ...]
+        swapw                   #[p, e1, d_size, t_depth, e0, poe, a1, a0, C, f_ptr - 2, ...]
+        movupw.2                #[C, p, e1, d_size, t_depth, e0, poe, a1, a0, f_ptr - 2, ...]
+        movup.4                 #[p, C, e1, d_size, t_depth, e0, poe, a1, a0, f_ptr - 2, ...]
+        movup.6                 #[d_size, p, C, e1, t_depth, e0, poe, a1, a0, f_ptr - 2, ...]
+        movup.6                 #[e1, d_size, p, C, t_depth, e0, poe, a1, a0, f_ptr - 2, ...]
+        movdn.7                 #[d_size, p, C, t_depth, e1, e0, poe, a1, a0, f_ptr - 2, f_ptr, i_ptr, ...]
+
+        ## Prepare initial is done for query p
+        # Call verify query full by iterating verify query layer 
+        exec.verify_query
+        #exec.verify_query_layer
+
+        ## Prepare for next iteration of while loop
+        # Cost: 10 cycles
+        # Input: [p%d_size/2, d_size/2, poe_sq, i_ptr + 1, f_ptr, i_ptr, rem1, rem0...]
+        # Ouput: [?, i_ptr, num_q-1, d_size, g, t_depth, f_ptr, rem1, rem0, ...]
+        dup.5                  #[i_ptr, p%d_size/2, d_size/2, poe_sq, i_ptr + 1, f_ptr, i_ptr, rem1, rem0...]
+        mem_loadw
+        sub.1 
+        dup
+        neq.0                  #[?, num_q-1, d_size, g, t_depth, f_ptr, i_ptr, rem1, rem0, ...]
+        movup.6 swap           #[?, i_ptr, num_q-1, d_size, g, t_depth, f_ptr, rem1, rem0, ...]
+    end
+
+    exec.verify_remainder_com
+end
